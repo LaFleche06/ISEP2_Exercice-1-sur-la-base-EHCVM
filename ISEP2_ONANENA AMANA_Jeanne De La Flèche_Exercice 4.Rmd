@@ -73,7 +73,6 @@ cereales <- cereales %>%
     TRUE ~ NA_character_
   ))
 
-install.packages("readxl")  
 library(readxl)  
 table_conversion <- read_xlsx("C:/Users/Mitson Informatique/Documents/ISEP2/Semestre 2/Traitement statistiques avec R/ISEP2_Cours_R_2024/Bases/Table de conversion phase 2.xlsx")
 
@@ -83,7 +82,7 @@ View(table_conversion)
 
 colnames(table_conversion)[colnames(table_conversion) == "produitID"] <- "cereales_id"
 
-dataframe_fusion <- merge(ctable_table_conversion, cereales, 
+dataframe_fusion <- merge(table_conversion, cereales, 
                           by = c("cereales__id" = "produitID",
                              "Unite_cons" = "uniteID",
                              "Taille_cons" = "tailleID"))
@@ -99,5 +98,39 @@ variables_a_transformer <- c("AutoCons", "Qtty_achat", "Qtty_cons", "Value_achat
 for (variable in variables_a_transformer) {
   cereales[[variable]] <- as_factor(cereales[[variable]])
 }
+```
+
+```{r}
+#Exportation de la base
+write.csv(cereales, file = "base_exportée.csv")
+```
+
+```{r}
+#donne les valeurs manquantes par variable
+data.frame(variables=colnames(cereales),'valeurs manquantes'=apply(cereales,MARGIN = 2, function(x) sum(is.na(x))))
+
+#le plus optimal
+data.frame('valeurs manquantes'=apply(cereales,MARGIN = 2, function(x) sum(is.na(x))))
+#pour voir l'aide de apply on fait base::apply
+
+```
+
+
+```{r}
+#IMPORTATION DE LA BASE
+library(readxl)
+Table_de_conversion_phase_2 <- read_excel(
+  "C:/Users/Mitson Informatique/Documents/ISEP2/Semestre 2/Traitement statistiques avec R/ISEP2_Cours_R_2024/Bases/Table de conversion phase 2.xlsx")
+
+Table_de_conversion_phase_2$...8 <- NULL
+Table_de_conversion_phase_2$...9 <- NULL
+View(Table_de_conversion_phase_2)
+
+colnames(Table_de_conversion_phase_2)[1:6] <- c("cereales__id","Nom_Prod",
+                                                "Unite_cons","Nom_Unite",
+                                                "Taille_cons","Nom_Taille")
+
+merge <- merge(cereales, Table_de_conversion_phase_2, 
+               by = c("cereales__id", "Unite_cons", "Taille_cons"), all.x = TRUE)
 ```
 
