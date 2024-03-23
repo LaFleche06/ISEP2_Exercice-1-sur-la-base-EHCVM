@@ -1,0 +1,250 @@
+---
+title: "DEVOIR NUMERO2 SUR LA BASE EHCVM"
+author: "ONANENA AMANA Jeanne De La Flèche"
+date: "2024-03-22"
+output: pdf_document
+---
+
+
+#Commençons par charger toutes les librairies dont nous aurons besoin pour le traitement de notre base de données.
+
+```{r libraries, echo = FALSE}
+library(haven)
+library(tidyverse)
+library(base)
+library(readxl)
+```
+
+
+#Importons la base à présent et renommons certaines variables.
+
+```{r Importation de la base, echo = FALSE}
+cereales <- read_dta("C:/Users/Mitson Informatique/Documents/ISEP2/Semestre 2/Traitement statistiques avec R/ISEP2_Cours_R_2024/Bases/cereales.dta")
+
+
+#renommons les variables
+
+glimpse(cereales)  # permet de visualiser la base
+cereales$t<-NULL
+
+labprod <- c("Riz local brisé"	,"Riz local entier"	,"Riz importé brisé"
+             ,"Riz importé entier"	,"Riz importé 3"	,"Maïs en épi","Maïs en grain"	,"Mil"	,"Sorgho"	,"Blé"	,"Fonio"	,"Autres céréales"	,"Farine de maïs"	,"semoule de mais"	,"Farine/semoule de mil"	,"semoule de mil"	,"Farine de blé local ou importé"	,"semoule de blé "	,"Autres farines de céréales"	,"Autres semoules de céréales"	,"Pâtes alimentaires"	,"Pain moderne"	,"Pain moderne type 2"	,"Pain traditionnel"	,"Pains traditionnel type 2"	,"Céréales de petit déjeuner"	
+             ,"Croissants"	,"Biscuits"	,"Gâteaux"	,"Beignets, galettes")
+
+levprod <- unique(cereales$cereales__id)
+
+edit(levprod) # permet de voir les viables et les codes qui leurs sont associé
+
+levprodN <- names(attr(cereales$cereales__id,"labels")) #le code extrait les 
+#noms des niveaux du facteur "cereales__id" dans le data frame "cereales" 
+#et les stocke dans le vecteur "levprodN"
+
+levprodL <- unname(attr(cereales$cereales__id,"labels")) #ce code extrait les 
+#valeurs des niveaux du facteur "cereales__id" dans le dataframe "cereales" et 
+#les stocke dans le vecteur "levprodL", en supprimant les noms associés aux niveaux.
+
+cereales$produit1 <- as.factor(cereales$cereales__id)
+glimpse(cereales)
+table(cereales$produit1)
+cereales$produit <- factor(cereales$cereales__id, 
+                           levels = levprodL,
+                           labels = levprodN ) #ce code transforme la colonne 
+#"cereales__id" du dataframe cereales en facteur, crée une nouvelle colonne 
+#"produit1" avec cette transformation, affiche des informations sur le dataframe,
+#puis crée une autre colonne "produit" avec des niveaux spécifiés par levprodL 
+#et des étiquettes spécifiées par levprodN.
+
+table(cereales$produit) #ce code donne une vue structurée du nombre d'observations 
+#pour chaque niveau de la variable "produit" dans le dataframe cereales.
+
+glimpse(cereales)
+
+colnames(cereales)[4:14] <- c("AutresCereales","Qtty_cons",
+                              "Unite_cons","Taille_cons",
+                              "AutoCons","AutresProv",
+                              "DernierAchat","Qtty_achat",
+                              "Unite_achat","Taille_achat",
+                              "Value_achat")
+
+colnames(cereales)
+edit(cereales$Unite_cons) # permet de modifier directement les variables
+cereales$unite_cons <- factor(cereales$Unite_cons,
+                              levels = unname(attr(cereales$Unite_cons,
+                                                   "labels")),
+                              labels =names(attr(cereales$Unite_cons,
+                                                 "labels")))
+
+cereales$taille_cons <- factor(cereales$Taille_cons,
+                               levels = unname(attr(cereales$Taille_cons,
+                                                    "labels")),
+                               labels =names(attr(cereales$Taille_cons,
+                                                  "labels")))
+```
+
+
+#Nous allons ici changer le type de certaines variables et découper des variables en unité standard.
+
+```{r decoupage et changement de type, echo=FALSE}
+# 5 changer de type ;
+# 6 d´ecoupage en classe ;identifier une cereale et une unite standard;
+
+
+cereales$classCereal <- cut(cereales$Qtty_cons, 
+                            labels = c("Tres faible",
+                                       "Faible",
+                                       "Moyen",
+                                       "Eleve"),
+                            breaks = c(0,50,70,110,168))
+
+cereales$classCereal_RizKg <- ifelse(cereales$cereales__id==1 & cereales$Unite_cons==100, 
+                                     cut(cereales$Qtty_cons, 
+                                         labels = c("Tres faible",
+                                                    "Faible",
+                                                    "Moyen",
+                                                    "Eleve"),
+                                         breaks = c(0,50,70,110,168)),NA)
+table(cereales$classCereal_RizKg)
+
+c0 <- unique(cereales[cereales$Unite_cons==100,"Taille_cons"])
+
+c1 <- cereales[cereales$cereales__id<5 & cereales$unite_cons==100, ]
+
+```
+
+
+#Mergons la base cereales à la base table de conversion.
+
+```{r merge, echo=FALSE}
+#merger la base
+table_conversion <- read_xlsx("C:/Users/Mitson Informatique/Documents/ISEP2/Semestre 2/Traitement statistiques avec R/ISEP2_Cours_R_2024/Bases/Table de conversion phase 2.xlsx")
+
+tableconves <- table_conversion %>%
+  select(-c(8,9)) %>%
+  mutate(produit=factor(produitID,levels=produitID,labels=produitNom),
+         Unite_cons=factor(uniteID, levels=uniteID, labels=uniteNom),
+         Taille_cons=factor(tailleID, levels=tailleID, labels=tailleNom))
+
+cereales3 <- merge(cereales, tableconves, by.x=c("cereales__id", "Unite_cons","Taille_cons"),
+                   by.y=c("produitID","uniteID","tailleID"),all.x=T)
+
+```
+
+
+#Concentrons nous maintenant sur la variables poids.
+
+```{r poids, echo=FALSE}
+#poids 
+library(tidyverse)
+library(purrr)
+library(data.table)
+
+cereales3 <- data.table(cereales3)
+setnames(cereales3,"poids","poids_cons")
+
+```
+
+#Chercons les NA de la variables poids
+
+```{r NA, echo=FALSE}
+# NA dans poids 
+
+anyNA(cereales3$poids_cons)
+sum(is.na(cereales3$poids_cons))
+```
+
+#Calculons le poids en kg. Pour cela, nous allons d'abord convertir la variable poids en variable numérique.
+
+```{r poids en kg, echo=FALSE}
+## Quantity conso en unite standard (kg)
+is.numeric(cereales3$Qtty_cons)
+is.numeric(cereales3$poids_cons) #affiche une erreur parce que la variable n'est pas numérique
+
+# on convertit poids en numeric 
+
+cereales3[,poids_cons:=as.numeric(poids_cons)]
+is.numeric(cereales3$poids_cons)
+
+cereales3 [, qtty_cons_kg:= poids_cons*Qtty_cons/1000]
+cereales3[,summary(qtty_cons_kg)]
+
+```
+
+#Trouvons ici les valeurs anormales de la variable poids.
+
+```{r valeurs anormales, echo=FALSE}
+## valeur anormale 
+
+cereales3_anormal <- cereales3[qtty_cons_kg>1000]
+glimpse(cereales3_anormal)
+```
+
+
+#Trouvons les valeurs manquantes par variable.
+
+```{r valeurs manquantes, echo=FALSE}
+#recherche les valeurs manquantes par variables
+data.frame('valeurs manquantes'=apply(cereales,MARGIN = 2, function(x) sum(is.na(x))))
+
+```
+
+
+
+```{r HomeWork, echo=FALSE}
+ 
+# calculer la quantite achete en kg; 
+
+cereales <- data.table(cereales)
+cereales3[,qtty_achat_kg:= poids_cons*Qtty_achat/1000]
+
+cereales[, "Qtty_achat"] 
+
+```
+
+
+#Trouvons le prix unitaire.
+
+```{r prix unitaire, echo=FALSE}
+# calculer le prix unitaire ;
+
+cereales[, Unite_price:= Value_achat/Qtty_achat]
+
+```
+
+
+```{r depenses de conso, echo=FALSE}
+# Calculer les depenses de consommation : Prix unitaire* qtty_cons 
+
+cereales[, dep_cons := Unite_price*Qtty_cons]
+```
+
+
+```{r correction des valeurs abérrantes, echo=FALSE}
+# Valeurs aberrantes :: corrections ; 
+cereales3[,qtty_achat_kg:= poids_cons*Qtty_achat/1000]
+
+```
+
+```{r valeurs abérrantes pour le riz, echo=FALSE}
+# identifions les valeurs aberrantes pour le riz
+
+# Summary
+cereales[cereales__id == 1 | cereales__id == 2 | cereales__id == 3 |cereales__id == 4 ,  summary(Qtty_cons)]
+
+# Slice_max, pour voir les 5 plus grandes valeurs
+cereales [cereales__id == 1 | cereales__id == 2 | cereales__id == 3 | cereales__id == 4 ,
+          slice_max(cereales ,Qtty_cons, n= 5)%>% 
+            select(Qtty_cons, Qtty_cons, cereales__id)] %>%  
+
+    View()
+```
+
+
+
+```{r pressure, echo=FALSE}
+# Boxplot, représentation graphique
+cereales[cereales__id == 1 | cereales__id == 2 | cereales__id == 3 |cereales__id == 4,
+          boxplot(Qtty_cons)]
+
+```
+
+
