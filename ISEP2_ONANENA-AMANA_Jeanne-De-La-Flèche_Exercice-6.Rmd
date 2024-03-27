@@ -1,0 +1,239 @@
+---
+title: "Traitement de la base EHCVM (suite)"
+author: "ONANENA AMANA Jeanne De La Flèche"
+date: "2024-03-27"
+output: pdf_document
+---
+
+
+
+
+
+
+```{r libraries, echo = FALSE}
+library(haven)
+```
+
+
+
+
+
+
+
+```{r importation de la base, echo=FALSE}
+cereales <-read_dta("C:/Users/Mitson Informatique/Documents/ISEP2/Semestre 2/Traitement statistiques avec R/ISEP2_Cours_R_2024/Bases/cereales.dta")
+str(cereales)
+
+
+```
+
+
+
+
+
+
+
+```{r renommer les variables, echo=FALSE}
+colnames(cereales)[4:14] <- c("AutresCereales","Qtty_cons",
+                              "Unite_cons","Taille_cons",
+                              "AutoCons","AutresProv",
+                              "DernierAchat","Qtty_achat",
+                              "Unite_achat","Taille_achat",
+                              "Value_achat")
+```
+
+
+
+
+
+
+
+
+```{r gestion des NA, echo=FALSE}
+## Suppression des ménages qui ne consomment ni achétent de céréales
+
+attach(cereales)
+anyNA(Qtty_cons)
+anyNA(Qtty_achat)
+
+```
+
+
+
+
+
+
+
+
+```{r variables temporaires, echo=FALSE}
+
+# Ménages qui ne consomment pas de céréales
+cereales$t<-ifelse(is.na(Qtty_cons)==1,1,0) 
+table(cereales$t) 
+ # Ménages qui n'achètent pas de céréales
+cereales$k<-ifelse(is.na(Qtty_achat)==1,1,0)
+table(cereales$k)
+
+cereales_na1<-cereales[cereales$t==1,]
+cereales_na2<-cereales[cereales$k==1,]
+
+cereales<-cereales[cereales$t==0,]
+cereales<-cereales[cereales$k==0,]
+```
+
+
+
+
+
+
+```{r suppression, echo=FALSE}
+# Supression des variables temporaires
+cereales$t<- NULL
+cereales$k<- NULL
+```
+
+
+
+
+
+
+```{r , echo=FALSE}
+library(readxl)
+Table_de_conversion<- read_excel("C:/Users/Mitson Informatique/Documents/ISEP2/Semestre 2/Traitement statistiques avec R/ISEP2_Cours_R_2024/Bases/Table de conversion phase 2.xlsx")
+
+Table_de_conversion$...8 <- NULL
+Table_de_conversion$...9 <- NULL
+```
+
+
+
+
+
+
+
+```{r , echo=FALSE}
+colnames(Table_de_conversion) <- c("cereales__id","Nom_Prod",
+                                   "Unite_cons","Nom_Unite",
+                                   "Taille_cons","Nom_Taille","poids_cons")
+
+```
+
+
+
+
+
+
+```{r , echo=FALSE}
+colnames(Table_de_conversion) <- c("cereales__id","Nom_Prod",
+                                   "Unite_achat","Nom_Unite",
+                                   "Taille_achat","Nom_Taille","poids_achat")
+```
+
+
+
+
+
+```{r base finale, echo=FALSE}
+cereales <- merge(cereales,Table_de_conversion, 
+                  by = c("cereales__id", "Unite_achat", "Taille_achat"),
+                  all.x = TRUE)
+
+```
+
+
+
+
+
+
+
+```{r traitement de la base, echo=FALSE}
+library(data.table)
+cereales_fin <- data.table(cereales)
+
+cereales_fin[,poids_cons:=as.numeric(poids_cons)] # Conversion de la variable poids_cons
+
+cereales_fin[,qtty_cons_kg:= poids_cons*Qtty_cons/1000] ## Quantité consommée en kg
+
+cereales_fin[,summary(qtty_cons_kg)] # Quelques paramètres de tendances centrales
+
+
+```
+
+
+
+
+
+
+
+```{r poids, echo=FALSE}
+# Conversion de la variable poids_achat
+cereales_fin[,poids_achat:=as.numeric(poids_achat)]
+# Quantité achetée en kg
+cereales_fin[,qtty_achat_kg:= poids_achat*Qtty_achat/1000] 
+# Quelques paramètres de tendances centrales
+cereales_fin[,summary(qtty_achat_kg)] 
+```
+
+
+
+
+
+
+```{r prix unitaire, echo=FALSE}
+# Prix unitaire
+cereales_fin[,prix_unit:= Value_achat/qtty_achat_kg] 
+# Quelques paramètres de tendances centrales
+cereales_fin[,summary(prix_unit)] 
+```
+
+
+
+
+
+
+
+```{r depenses, echo=FALSE}
+# Dépenses de consommations 
+cereales_fin[,depen_cons:= prix_unit*qtty_cons_kg] 
+# Quelques paramètres de tendances centrales
+cereales_fin[,summary(depen_cons)] 
+
+```
+
+
+
+
+
+
+
+```{r quartile, echo=FALSE}
+# Calcul de l'intervalle interquartile
+Q1 <- quantile(cereales_fin$depen_cons, 0.25)
+Q3 <- quantile(cereales_fin$depen_cons, 0.75)
+IQR <- Q3 - Q1
+```
+
+
+
+
+
+
+
+```{r limite pour les valeurs aberrantes, echo=FALSE}
+# Définition des limites pour les valeurs aberrantes
+upper_bound <- Q3 + 1.5 * IQR
+lower_bound <- Q1 - 1.5 * IQR
+
+```
+
+
+
+
+
+
+```{r supprission des valeurs aberrantes, echo=FALSE}
+# Suppression des valeurs aberrantes
+cereales_fin <- cereales_fin[cereales_fin$depen_cons >= lower_bound 
+                             & cereales_fin$depen_cons <= upper_bound, ]
+
+```
